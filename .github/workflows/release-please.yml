@@ -1,8 +1,10 @@
+---
 name: Release Please
 
 on:
   push:
     branches: [main]
+  workflow_dispatch:
 
 permissions: {}
 
@@ -18,21 +20,42 @@ jobs:
       contents: write
       pull-requests: write
     steps:
+      - uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349 # v2
+        id: app-token
+        with:
+          app-id: ${{ vars.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+
       - uses: googleapis/release-please-action@5c625bfb5d1ff62eadeeb3772007f7f66fdcf071 # v4
         id: release
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ steps.app-token.outputs.token }}
 
-      - name: Maintain floating major and minor tags
+      - if: ${{ steps.release.outputs.release_created == 'true' }}
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+
+      - name: Bump action doc version pins
         if: ${{ steps.release.outputs.release_created == 'true' }}
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          REPO: ${{ github.repository }}
-          SHA: ${{ steps.release.outputs.sha }}
-          MAJOR: ${{ steps.release.outputs.major }}
-          MINOR: ${{ steps.release.outputs.minor }}
+          TAG: ${{ steps.release.outputs.tag_name }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
-          for ref in "v${MAJOR}" "v${MAJOR}.${MINOR}"; do
-            gh api -X PATCH "repos/${REPO}/git/refs/tags/${ref}" -f sha="${SHA}" -F force=true \
-              || gh api -X POST "repos/${REPO}/git/refs" -f ref="refs/tags/${ref}" -f sha="${SHA}"
-          done
+          find actions -name 'README.md' -print0 | xargs -0 sed -E -i \
+            "s#(reusable-actions/actions/[A-Za-z0-9/_-]+@)v[0-9]+\.[0-9]+\.[0-9]+#\1${TAG}#g"
+          if git diff --quiet; then
+            echo "No version pins needed updating."
+            exit 0
+          fi
+          BRANCH="chore/bump-doc-pins-${TAG}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c "${BRANCH}"
+          git add actions
+          git commit -m "chore: bump action doc version pins to ${TAG}"
+          git push -f origin "${BRANCH}"
+          gh pr create --base main --head "${BRANCH}" \
+            --title "chore: bump action doc version pins to ${TAG}" \
+            --body "Automated after ${TAG}: sync action README @v pins to ${TAG}." \
+            || echo "PR already exists; branch updated."

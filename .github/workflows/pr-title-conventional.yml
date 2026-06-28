@@ -1,0 +1,29 @@
+---
+name: PR Title Convention
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize]
+    branches: [main]
+
+permissions: {}
+
+jobs:
+  validate:
+    if: ${{ !startsWith(github.head_ref, 'release-please--') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check PR title follows Conventional Commits
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          PATTERN='^(fix|feat|chore|docs|style|refactor|perf|test|build|ci|revert)(\(.+\))?!?: .+'
+          if [[ ! "$PR_TITLE" =~ $PATTERN ]]; then
+            echo "::error::PR title does not follow Conventional Commits format."
+            echo "Expected: <type>(<optional scope>): <description>"
+            echo "Got:      $PR_TITLE"
+            echo "Valid types: fix, feat, chore, docs, style, refactor, perf, test, build, ci, revert"
+            exit 1
+          fi
+          echo "PR title OK: $PR_TITLE"
