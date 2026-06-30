@@ -1,0 +1,42 @@
+---
+name: 'Ansible Lint'
+description: 'Lint Ansible content with ansible-lint.'
+
+inputs:
+  args:
+    description: 'Arguments passed to ansible-lint (paths, --profile, etc.).'
+    required: false
+    default: ''
+  requirements_file:
+    description: 'Path to a requirements.yml; its roles and collections install before linting.'
+    required: false
+    default: ''
+  working_directory:
+    description: 'Directory to run ansible-lint from. Empty uses the workspace root.'
+    required: false
+    default: ''
+  setup_python:
+    description: 'Set up Python. Set "false" to use the Python already on the runner.'
+    required: false
+    default: 'true'
+  python_version:
+    description: 'Python version when setup_python is true.'
+    required: false
+    default: '3.14'
+  override_version:
+    description: 'ansible-lint branch, tag or commit to install. Empty uses the action default.'
+    required: false
+    default: ''
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Run ansible-lint
+      uses: ansible/ansible-lint@5fac056c45595896c973fbde871f01f6cb14d74c # v26.4.0
+      with:
+        args: ${{ inputs.args }}
+        requirements_file: ${{ inputs.requirements_file }}
+        working_directory: ${{ inputs.working_directory }}
+        setup_python: ${{ inputs.setup_python }}
+        python_version: ${{ inputs.python_version }}
+        override_version: ${{ inputs.override_version }}
